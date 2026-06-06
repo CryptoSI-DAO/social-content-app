@@ -1,14 +1,13 @@
 'use client'
 
 import { useApp, Platform } from '@/app/providers'
-import { BRAND_PROFILES } from '@/app/providers'
 import { useState } from 'react'
 
 const PLATFORM_META: Record<Platform, { label: string; icon: string; color: string }> = {
-  twitter: { label: 'X / Twitter', icon: '𝕏', color: '#000000' },
-  instagram: { label: 'Instagram', icon: '📷', color: '#E4405F' },
-  facebook: { label: 'Facebook', icon: 'f', color: '#1877F2' },
-  linkedin: { label: 'LinkedIn', icon: 'in', color: '#0A66C2' },
+  twitter:   { label: 'X / Twitter', icon: '𝕏', color: '#000000' },
+  instagram: { label: 'Instagram',  icon: '📷', color: '#E4405F' },
+  facebook:  { label: 'Facebook',   icon: 'f',  color: '#1877F2' },
+  linkedin:  { label: 'LinkedIn',   icon: 'in', color: '#0A66C2' },
 }
 
 interface Props {
@@ -18,10 +17,10 @@ interface Props {
 export default function SettingsPanel({ onClose }: Props) {
   const { activeProfile } = useApp()
   const [platformToggles, setPlatformToggles] = useState<Record<Platform, boolean>>({
-    twitter: activeProfile.enabledPlatforms.includes('twitter'),
+    twitter:   activeProfile.enabledPlatforms.includes('twitter'),
     instagram: activeProfile.enabledPlatforms.includes('instagram'),
-    facebook: activeProfile.enabledPlatforms.includes('facebook'),
-    linkedin: activeProfile.enabledPlatforms.includes('linkedin'),
+    facebook:  activeProfile.enabledPlatforms.includes('facebook'),
+    linkedin:  activeProfile.enabledPlatforms.includes('linkedin'),
   })
 
   const togglePlatform = (platform: Platform) => {
@@ -29,23 +28,22 @@ export default function SettingsPanel({ onClose }: Props) {
   }
 
   const handleSave = () => {
-    // TODO: persist to Supabase
     console.log('Saving platform settings:', platformToggles)
     onClose()
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full p-4 md:p-8">
+    <div className="flex flex-col items-center min-h-full p-4 md:p-8">
       <div className="w-full max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6 sm:mb-8">
           <div>
-            <h2 className="text-xl font-bold">Settings</h2>
-            <p className="text-brand-muted text-sm">Configure platforms for {activeProfile.name}</p>
+            <h2 className="text-lg sm:text-xl font-bold">Settings</h2>
+            <p className="text-brand-muted text-sm mt-0.5">Configure platforms for {activeProfile.name}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg bg-brand-card border border-brand-border hover:border-brand-accent transition-colors"
+            className="p-2.5 rounded-lg bg-brand-card border border-brand-border hover:border-brand-accent transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Close settings"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,8 +53,8 @@ export default function SettingsPanel({ onClose }: Props) {
         </div>
 
         {/* Platform toggles */}
-        <div className="space-y-3 mb-8">
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted mb-3">
+        <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8">
+          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-brand-muted mb-2 sm:mb-3">
             Enabled Platforms
           </p>
           {(Object.keys(PLATFORM_META) as Platform[]).map((platform) => {
@@ -66,14 +64,16 @@ export default function SettingsPanel({ onClose }: Props) {
               <button
                 key={platform}
                 onClick={() => togglePlatform(platform)}
-                className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                  isEnabled
+                className={`
+                  w-full flex items-center justify-between p-3.5 sm:p-4 rounded-xl border transition-all min-h-[56px]
+                  ${isEnabled
                     ? 'border-brand-accent bg-brand-accent/5'
                     : 'border-brand-border bg-brand-card'
-                }`}
+                  }
+                `}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xl w-8 text-center">{meta.icon}</span>
+                  <span className="text-lg sm:text-xl w-8 text-center shrink-0">{meta.icon}</span>
                   <div className="text-left">
                     <p className="font-medium text-sm">{meta.label}</p>
                     <p className="text-[11px] text-brand-muted">
@@ -83,15 +83,14 @@ export default function SettingsPanel({ onClose }: Props) {
                 </div>
                 {/* Toggle switch */}
                 <div
-                  className={`w-11 h-6 rounded-full transition-colors relative ${
-                    isEnabled ? 'bg-brand-accent' : 'bg-brand-border'
-                  }`}
+                  className={`
+                    w-12 h-7 rounded-full transition-colors relative shrink-0 ml-3
+                    ${isEnabled ? 'bg-brand-accent' : 'bg-brand-border'}
+                  `}
                 >
                   <div
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                      isEnabled ? 'translate-x-5.5 left-0.5' : 'left-0.5'
-                    }`}
-                    style={{ transform: isEnabled ? 'translateX(22px)' : 'translateX(0)' }}
+                    className="absolute top-[3px] w-[22px] h-[22px] rounded-full bg-white shadow-sm transition-all duration-200"
+                    style={{ left: isEnabled ? '26px' : '3px' }}
                   />
                 </div>
               </button>
@@ -99,23 +98,23 @@ export default function SettingsPanel({ onClose }: Props) {
           })}
         </div>
 
-        {/* Brand info (read-only for now) */}
+        {/* Brand info */}
         <div className="bg-brand-card border border-brand-border rounded-xl p-4 mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted mb-3">
+          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-brand-muted mb-3">
             Brand Profile
           </p>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
+          <div className="space-y-2.5 text-sm">
+            <div className="flex justify-between items-center">
               <span className="text-brand-muted">Name</span>
-              <span>{activeProfile.name}</span>
+              <span className="font-medium">{activeProfile.name}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-brand-muted">Voice</span>
-              <span className="text-right max-w-[60%] text-xs">{activeProfile.voice}</span>
+            <div className="flex justify-between items-start gap-4">
+              <span className="text-brand-muted shrink-0">Voice</span>
+              <span className="text-right text-xs leading-relaxed text-brand-text/80">{activeProfile.voice}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-brand-muted">Website</span>
-              <span className="text-brand-accent text-xs">{activeProfile.website}</span>
+              <span className="text-brand-accent text-xs truncate ml-4">{activeProfile.website}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-brand-muted">Colors</span>
@@ -139,7 +138,7 @@ export default function SettingsPanel({ onClose }: Props) {
         {/* Save button */}
         <button
           onClick={handleSave}
-          className="w-full py-3 rounded-xl font-medium text-sm transition-all"
+          className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
           style={{ backgroundColor: activeProfile.colors.primary, color: '#fff' }}
         >
           Save Settings
