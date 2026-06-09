@@ -13,12 +13,34 @@ cp .env.example .env.local
 # Edit .env.local with your Supabase credentials
 
 # 3. Set up Supabase
-# Run supabase/schema.sql in your Supabase SQL editor
+# Run supabase/schema.sql in your Supabase SQL editor (or use /pg/query endpoint)
 
 # 4. Run locally
 npm run dev
 # Open http://localhost:3000
 ```
+
+## Supabase Setup (Self-Hosted)
+
+This app connects to a self-hosted Supabase instance.
+
+### Database Schema
+
+Tables are created automatically via the `/pg/query` endpoint:
+
+- **profiles** — Brand configurations (name, voice, colors, hashtags, platforms)
+- **posts** — Generated content with 24-hour expiry, scoped to `user_id`
+
+### Row Level Security
+
+- `profiles`: Readable by all authenticated users
+- `posts`: Users can only CRUD their own posts (via `user_id` foreign key to `auth.users`)
+
+### Auth
+
+- Email/password authentication with confirmation links
+- Middleware protects all routes except `/login` and `/auth/callback`
+- Session managed via cookies (`@supabase/ssr`)
 
 ## Deploy to Vercel
 
@@ -26,13 +48,12 @@ npm run dev
 # Connect repo to Vercel, then add env vars in Vercel dashboard:
 # - NEXT_PUBLIC_SUPABASE_URL
 # - NEXT_PUBLIC_SUPABASE_ANON_KEY
-# - OPENAI_API_KEY (when ready)
 ```
 
 ## Architecture
 
-- **Frontend**: Next.js 14 + Tailwind CSS (dark theme, mobile-first)
-- **Backend**: Supabase (PostgreSQL + Storage)
+- **Frontend**: Next.js 16 + Tailwind CSS (dark theme, mobile-first)
+- **Backend**: Supabase (PostgreSQL + Auth + Storage)
 - **Image Gen**: OpenAI Image-1 (coming soon)
 - **Content Gen**: News API + GPT (coming soon)
 
@@ -43,6 +64,8 @@ Edit `src/app/providers.tsx` → `BRAND_PROFILES` to add/edit brands.
 ## Roadmap
 
 - [x] Scaffolding: layout, sidebar, bottom nav, card view, settings
+- [x] Supabase auth: login, signup, middleware, RLS policies
+- [x] Database: profiles + posts tables with user scoping
 - [ ] Supabase integration (fetch/save posts)
 - [ ] OpenAI image generation
 - [ ] News API integration for content signals
