@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, createContext, useContext, useCallback, useEffect } from 'react'
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { useState, createContext, useContext, useCallback, useEffect, type ReactNode } from 'react'
+import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js'
 
 // ── Types ──────────────────────────────────────────────────────────
 export type Platform = 'twitter' | 'instagram' | 'facebook' | 'linkedin'
@@ -29,7 +29,7 @@ export interface ContentPost {
   expiresAt: string
 }
 
-// ── Brand Config (fill in later) ───────────────────────────────────
+// ── Brand Config ───────────────────────────────────────────────────
 export const BRAND_PROFILES: BrandProfile[] = [
   {
     id: 'cryptosidao',
@@ -58,6 +58,10 @@ export const BRAND_PROFILES: BrandProfile[] = [
 // ── Context ────────────────────────────────────────────────────────
 interface AppContextType {
   supabase: SupabaseClient | null
+  user: User | null
+  session: Session | null
+  loading: boolean
+  signOut: () => Promise<void>
   activeProfile: BrandProfile
   setActiveProfile: (p: BrandProfile) => void
   activePlatform: Platform
@@ -84,25 +88,60 @@ function createSupabaseClient(): SupabaseClient | null {
 }
 
 // ── Provider ───────────────────────────────────────────────────────
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
   const [supabase] = useState(() => createSupabaseClient())
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
   const [activeProfile, setActiveProfile] = useState<BrandProfile>(BRAND_PROFILES[0])
   const [activePlatform, setActivePlatform] = useState<Platform>('twitter')
   const [currentPost, setCurrentPost] = useState<ContentPost | null>(null)
 
+  // Listen for auth state changes
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession)
+      setUser(initialSession?.user ?? null)
+      setLoading(false)
+    })
+
+    // Listen for changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+      setUser(newSession?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  const signOut = useCallback(async () => {
+    if (!supabase) return
+    await supabase.auth.signOut()
+    setUser(null)
+    setSession(null)
+    setCurrentPost(null)
+  }, [supabase])
+
   const refreshContent = useCallback(async () => {
     // TODO: fetch or generate new content for today
-    // For now, this is a placeholder
     console.log('Refreshing content for', activeProfile.name, activePlatform)
   }, [activeProfile, activePlatform])
-
-  useEffect(() => {
-    refreshContent()
-  }, [refreshContent])
 
   return (
     <AppContext.Provider value={{
       supabase,
+      user,
+      session,
+      loading,
+      signOut,
       activeProfile,
       setActiveProfile,
       activePlatform,

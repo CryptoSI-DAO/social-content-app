@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function SettingsPanel({ onClose }: Props) {
-  const { activeProfile } = useApp()
+  const { activeProfile, user, signOut } = useApp()
   const [platformToggles, setPlatformToggles] = useState<Record<Platform, boolean>>({
     twitter:   activeProfile.enabledPlatforms.includes('twitter'),
     instagram: activeProfile.enabledPlatforms.includes('instagram'),
@@ -49,6 +49,31 @@ export default function SettingsPanel({ onClose }: Props) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
+          </button>
+        </div>
+
+        {/* Account section */}
+        <div className="bg-brand-card border border-brand-border rounded-xl p-4 mb-6">
+          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-brand-muted mb-3">
+            Account
+          </p>
+          <div className="space-y-2.5 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-brand-muted">Email</span>
+              <span className="font-medium truncate ml-4">{user?.email || '—'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-brand-muted">User ID</span>
+              <span className="text-xs text-brand-muted font-mono truncate ml-4">
+                {user?.id ? `${user.id.slice(0, 8)}…` : '—'}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={signOut}
+            className="w-full mt-4 py-3 rounded-xl text-sm font-medium border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all min-h-[48px]"
+          >
+            Sign Out
           </button>
         </div>
 

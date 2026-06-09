@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS posts (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   platform TEXT NOT NULL CHECK (platform IN ('twitter','instagram','facebook','linkedin')),
   image_url TEXT NOT NULL,
   caption TEXT NOT NULL,
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS posts (
 -- ── Index for fast lookups ───────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_posts_profile_platform ON posts(profile_id, platform);
 CREATE INDEX IF NOT EXISTS idx_posts_expires ON posts(expires_at);
+CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
 
 -- ── Auto-cleanup expired posts (optional, runs via pg_cron) ─────
 -- Uncomment if you have pg_cron enabled:
@@ -48,12 +50,26 @@ CREATE INDEX IF NOT EXISTS idx_posts_expires ON posts(expires_at);
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations for authenticated users (single-user app)
-CREATE POLICY "Allow all for authenticated" ON profiles
-  FOR ALL USING (true);
+-- Profiles: readable by authenticated users
+CREATE POLICY "Profiles readable by authenticated" ON profiles
+  FOR SELECT USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Allow all for authenticated" ON posts
-  FOR ALL USING (true);
+-- Profiles: updatable by authenticated users (simple single-user app)
+CREATE POLICY "Profiles updatable by authenticated" ON profiles
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Posts: users can only see/manage their own posts
+CREATE POLICY "Users can view own posts" ON posts
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own posts" ON posts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own posts" ON posts
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own posts" ON posts
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- ── Seed data ────────────────────────────────────────────────────
 INSERT INTO profiles (slug, name, description, voice, colors, hashtags, website, enabled_platforms)
