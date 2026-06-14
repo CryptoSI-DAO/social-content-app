@@ -67,7 +67,9 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico (favicon)
      * - public folder
+     * - supabase-proxy (API proxy — must be public)
+     * - api (serverless functions)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|supabase-proxy|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
