@@ -3,28 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-
-function getSupabase(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return null
-  return createClient(url, key)
-}
+import { supabase as sharedSupabase } from '@/lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null)
+  const [supabase, setSupabase] = useState(sharedSupabase)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
-
-  // Initialize Supabase client on mount (client-side only)
-  useEffect(() => {
-    setSupabase(getSupabase())
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

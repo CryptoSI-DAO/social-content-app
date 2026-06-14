@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, createContext, useContext, useCallback, useEffect, type ReactNode } from 'react'
-import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js'
+import { type SupabaseClient, type User, type Session } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 import { fetchCurrentPost } from '@/lib/content'
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -80,12 +81,12 @@ export function useApp() {
   return ctx
 }
 
-// ── Supabase client ────────────────────────────────────────────────
+// ── Supabase client (SSR-compatible, cookie-based) ────────────────
 function createSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) return null
-  return createClient(url, key)
+  return createBrowserClient(url, key)
 }
 
 // ── Provider ───────────────────────────────────────────────────────
