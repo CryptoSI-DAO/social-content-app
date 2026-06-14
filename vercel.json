@@ -1,5 +1,9 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "rewrites": [
+    { "source": "/supabase-proxy/:path*", "destination": "/api/supabase-proxy" },
+    { "source": "/supabase-proxy", "destination": "/api/supabase-proxy" }
+  ]
 }

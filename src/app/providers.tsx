@@ -2,6 +2,7 @@
 
 import { useState, createContext, useContext, useCallback, useEffect, type ReactNode } from 'react'
 import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js'
+import { fetchCurrentPost } from '@/lib/content'
 
 // ── Types ──────────────────────────────────────────────────────────
 export type Platform = 'twitter' | 'instagram' | 'facebook' | 'linkedin'
@@ -122,6 +123,12 @@ export function Providers({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [supabase])
 
+  // Fetch current post from Supabase when user/profile/platform changes
+  useEffect(() => {
+    if (!supabase || !user) return
+    fetchCurrentPost(supabase, activeProfile.id, activePlatform, user.id).then(setCurrentPost)
+  }, [supabase, user, activeProfile, activePlatform])
+
   const signOut = useCallback(async () => {
     if (!supabase) return
     await supabase.auth.signOut()
@@ -131,9 +138,22 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [supabase])
 
   const refreshContent = useCallback(async () => {
-    // TODO: fetch or generate new content for today
-    console.log('Refreshing content for', activeProfile.name, activePlatform)
-  }, [activeProfile, activePlatform])
+    if (!supabase || !user) {
+      console.log('Demo mode — no Supabase connected')
+      return
+    }
+
+    // First try to fetch an existing non-expired post
+    const existing = await fetchCurrentPost(supabase, activeProfile.id, activePlatform, user.id)
+    if (existing) {
+      setCurrentPost(existing)
+      return
+    }
+
+    // No active post — TODO: generate via AI (issues #2, #3)
+    // For now, just log
+    console.log('No active post found — AI generation not yet implemented')
+  }, [supabase, user, activeProfile, activePlatform])
 
   return (
     <AppContext.Provider value={{
