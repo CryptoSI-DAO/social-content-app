@@ -15,9 +15,11 @@ interface Props {
   profile: BrandProfile
   platform: Platform
   onRefresh: () => void
+  generating?: boolean
+  generatingStatus?: string
 }
 
-export default function ContentCard({ post, profile, platform, onRefresh }: Props) {
+export default function ContentCard({ post, profile, platform, onRefresh, generating, generatingStatus }: Props) {
   const [copied, setCopied] = useState(false)
   const limits = PLATFORM_LIMITS[platform]
 
@@ -50,14 +52,24 @@ export default function ContentCard({ post, profile, platform, onRefresh }: Prop
           style={{ backgroundColor: profile.colors.primary + '10' }}
         >
           <div className="text-center p-6 sm:p-8">
-            <div
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl mx-auto mb-3 sm:mb-4 flex items-center justify-center text-xl sm:text-2xl font-bold"
-              style={{ backgroundColor: profile.colors.primary + '25', color: profile.colors.primary }}
-            >
-              {profile.name.charAt(0)}
-            </div>
-            <p className="text-brand-muted text-sm font-medium">No content generated yet</p>
-            <p className="text-brand-muted text-xs mt-1">Tap the button below to generate today's post</p>
+            {generating ? (
+              <>
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-brand-accent/30 border-t-brand-accent animate-spin mx-auto mb-4" />
+                <p className="text-brand-muted text-sm font-medium">{generatingStatus || 'Generating...'}</p>
+                <p className="text-brand-muted text-xs mt-1">This takes ~60-90 seconds</p>
+              </>
+            ) : (
+              <>
+                <div
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl mx-auto mb-3 sm:mb-4 flex items-center justify-center text-xl sm:text-2xl font-bold"
+                  style={{ backgroundColor: profile.colors.primary + '25', color: profile.colors.primary }}
+                >
+                  {profile.name.charAt(0)}
+                </div>
+                <p className="text-brand-muted text-sm font-medium">No content generated yet</p>
+                <p className="text-brand-muted text-xs mt-1">Tap the button below to generate today's post</p>
+              </>
+            )}
           </div>
         </div>
 
@@ -82,10 +94,11 @@ export default function ContentCard({ post, profile, platform, onRefresh }: Prop
 
           <button
             onClick={onRefresh}
-            className="w-full mt-4 py-3.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
+            disabled={generating}
+            className="w-full mt-4 py-3.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: profile.colors.primary, color: '#fff' }}
           >
-            ✨ Generate Content
+            {generating ? (generatingStatus || 'Generating...') : '✨ Generate Content'}
           </button>
         </div>
       </div>

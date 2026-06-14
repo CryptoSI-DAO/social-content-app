@@ -70,6 +70,6 @@ export const config = {
      * - supabase-proxy (API proxy — must be public)
      * - api (serverless functions)
      */
-    '/((?!_next/static|_next/image|favicon.ico|supabase-proxy|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|supabase-proxy|image-api|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

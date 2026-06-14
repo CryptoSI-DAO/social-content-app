@@ -3,7 +3,8 @@
 import { useState, createContext, useContext, useCallback, useEffect, type ReactNode } from 'react'
 import { type SupabaseClient, type User, type Session } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
-import { fetchCurrentPost } from '@/lib/content'
+import { fetchCurrentPost, savePost } from '@/lib/content'
+import { useImageGen } from '@/lib/use-image-gen'
 
 // ── Types ──────────────────────────────────────────────────────────
 export type Platform = 'twitter' | 'instagram' | 'facebook' | 'linkedin'
@@ -71,6 +72,8 @@ interface AppContextType {
   currentPost: ContentPost | null
   setCurrentPost: (post: ContentPost | null) => void
   refreshContent: () => Promise<void>
+  generating: boolean
+  generatingStatus: string
 }
 
 const AppContext = createContext<AppContextType | null>(null)
@@ -98,6 +101,9 @@ export function Providers({ children }: { children: ReactNode }) {
   const [activeProfile, setActiveProfile] = useState<BrandProfile>(BRAND_PROFILES[0])
   const [activePlatform, setActivePlatform] = useState<Platform>('twitter')
   const [currentPost, setCurrentPost] = useState<ContentPost | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [generatingStatus, setGeneratingStatus] = useState('')
+  const { generate } = useImageGen()
 
   // Listen for auth state changes
   useEffect(() => {
@@ -139,22 +145,79 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [supabase])
 
   const refreshContent = useCallback(async () => {
-    if (!supabase || !user) {
-      console.log('Demo mode — no Supabase connected')
-      return
-    }
-
     // First try to fetch an existing non-expired post
-    const existing = await fetchCurrentPost(supabase, activeProfile.id, activePlatform, user.id)
-    if (existing) {
-      setCurrentPost(existing)
-      return
+    if (supabase && user) {
+      const existing = await fetchCurrentPost(supabase, activeProfile.id, activePlatform, user.id)
+      if (existing) {
+        setCurrentPost(existing)
+        return
+      }
     }
 
-    // No active post — TODO: generate via AI (issues #2, #3)
-    // For now, just log
-    console.log('No active post found — AI generation not yet implemented')
-  }, [supabase, user, activeProfile, activePlatform])
+    // No active post — generate a new image via Codex/gpt-image-2
+    setGenerating(true)
+    setGeneratingStatus('Creating your image...')
+
+    try {
+      // Build a prompt from the brand profile
+      const prompt = buildImagePrompt(activeProfile, activePlatform)
+
+      const sizeMap: Record<Platform, string> = {
+        twitter: '1536x1024',
+        instagram: '1024x1024',
+        facebook: '1536x1024',
+        linkedin: '1536x1024',
+      }
+
+      const imageUrl = await generate(prompt, sizeMap[activePlatform])
+
+      if (!imageUrl) {
+        setGenerating(false)
+        setGeneratingStatus('')
+        return
+      }
+
+      setGeneratingStatus('Writing caption...')
+
+      // Generate a simple caption from brand voice
+      const caption = buildCaption(activeProfile, activePlatform)
+
+      // Save to Supabase if available
+      let savedPost: ContentPost | null = null
+      if (supabase && user) {
+        savedPost = await savePost(supabase, {
+          profileId: activeProfile.id,
+          userId: user.id,
+          platform: activePlatform,
+          imageUrl,
+          caption,
+        })
+      }
+
+      // Set the post (saved or ephemeral)
+      if (savedPost) {
+        setCurrentPost(savedPost)
+      } else {
+        // Ephemeral post (no Supabase) — still show it
+        setCurrentPost({
+          id: `ephemeral-${Date.now()}`,
+          profileId: activeProfile.id,
+          platform: activePlatform,
+          imageUrl,
+          caption,
+          generatedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        })
+      }
+
+      setGenerating(false)
+      setGeneratingStatus('')
+    } catch (err) {
+      setGenerating(false)
+      setGeneratingStatus('')
+      console.error('Generation failed:', err)
+    }
+  }, [supabase, user, activeProfile, activePlatform, generate])
 
   return (
     <AppContext.Provider value={{
@@ -170,8 +233,48 @@ export function Providers({ children }: { children: ReactNode }) {
       currentPost,
       setCurrentPost,
       refreshContent,
+      generating,
+      generatingStatus,
     }}>
       {children}
     </AppContext.Provider>
   )
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+
+function buildImagePrompt(profile: BrandProfile, platform: Platform): string {
+  const theme = profile.colors.primary === '#e7f900' || profile.colors.accent === '#e7f900'
+    ? 'neon yellow and dark futuristic crypto aesthetic'
+    : 'professional clean modern aesthetic'
+
+  const platformHint = platform === 'instagram'
+    ? 'square composition'
+    : 'wide banner composition'
+
+  // Keep prompt short for reliability (gpt-image-2 prefers <60 words)
+  return `${profile.name} social media ${platform} post image. ${theme}. ${profile.description}. ${platformHint}. Bold, eye-catching, high quality.`
+}
+
+function buildCaption(profile: BrandProfile, platform: Platform): string {
+  const tags = profile.hashtags.slice(0, platform === 'instagram' ? 8 : 3).join(' ')
+  const lines: string[] = []
+
+  if (profile.id === 'cryptosidao') {
+    const templates = [
+      `Building the future of decentralized communities. The revolution won't be centralized. 🚀\n\n${tags}`,
+      `Web3 is here. Are you ready? Join the movement. 💎\n\n${tags}`,
+      `Decentralization isn't just a buzzword — it's the future. 🔮\n\n${tags}`,
+    ]
+    lines.push(templates[Math.floor(Math.random() * templates.length)])
+  } else {
+    const templates = [
+      `Innovation meets excellence. This is ${profile.name}. ✨\n\n${tags}`,
+      `Stay ahead of the curve with ${profile.name}. 💡\n\n${tags}`,
+      `The future is now. ${profile.description}. 🔥\n\n${tags}`,
+    ]
+    lines.push(templates[Math.floor(Math.random() * templates.length)])
+  }
+
+  return lines[0]
 }

@@ -6,7 +6,7 @@ import SettingsPanel from '@/components/SettingsPanel'
 import { useState, useCallback } from 'react'
 
 export default function Dashboard() {
-  const { currentPost, activeProfile, activePlatform, refreshContent, user, signOut, loading } = useApp()
+  const { currentPost, activeProfile, activePlatform, refreshContent, user, signOut, loading, generating, generatingStatus } = useApp()
   const [showSettings, setShowSettings] = useState(false)
 
   const handleOpenSidebar = useCallback(() => {
@@ -102,6 +102,8 @@ export default function Dashboard() {
         profile={activeProfile}
         platform={activePlatform}
         onRefresh={refreshContent}
+        generating={generating}
+        generatingStatus={generatingStatus}
       />
 
       {/* Platform tips */}
