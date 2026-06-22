@@ -106,9 +106,22 @@ export default function Sidebar({ onToggle }: { onToggle?: (open: boolean) => vo
           })}
         </div>
 
+        {/* History link */}
+        <div className="border-t border-brand-border pt-3 pb-2">
+          <a
+            href="/history"
+            className="w-full flex items-center gap-3 px-4 py-3 min-h-[48px] text-brand-muted hover:text-brand-text hover:bg-brand-border/50 rounded-lg transition-all"
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="font-medium text-sm">History</span>
+          </a>
+        </div>
+
         {/* Bottom */}
         <div className="p-4 border-t border-brand-border shrink-0">
-          <p className="text-[10px] text-brand-muted">v0.1.0 · Scaffolding</p>
+          <p className="text-[10px] text-brand-muted">v1.0.0 · Live</p>
         </div>
       </aside>
     </>

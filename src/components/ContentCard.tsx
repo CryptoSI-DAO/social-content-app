@@ -1,13 +1,39 @@
 'use client'
 
 import { ContentPost, BrandProfile, Platform } from '@/app/providers'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const PLATFORM_LIMITS: Record<Platform, { chars: string; imageRatio: string; aspectClass: string }> = {
   twitter:   { chars: '280',    imageRatio: '16:9',      aspectClass: 'aspect-video' },
   instagram: { chars: '2,200',  imageRatio: '1:1 / 4:5', aspectClass: 'aspect-square' },
   facebook:  { chars: '63K',    imageRatio: '1.91:1',    aspectClass: 'aspect-video' },
   linkedin:  { chars: '3,000',  imageRatio: '1.91:1',    aspectClass: 'aspect-video' },
+}
+
+const SHARE_ICONS: Record<Platform, string> = {
+  twitter: '𝕏',
+  instagram: '📷',
+  facebook: 'f',
+  linkedin: 'in',
+}
+
+function buildShareUrl(platform: Platform, caption: string, website: string): string {
+  const encodedCaption = encodeURIComponent(caption)
+  const encodedUrl = encodeURIComponent(website || window.location.origin)
+
+  switch (platform) {
+    case 'twitter':
+      return `https://twitter.com/intent/tweet?text=${encodedCaption}`
+    case 'facebook':
+      return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedCaption}`
+    case 'linkedin':
+      return `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`
+    case 'instagram':
+      // Instagram doesn't support web share URLs — copy caption instead
+      return ''
+    default:
+      return ''
+  }
 }
 
 interface Props {
@@ -17,28 +43,90 @@ interface Props {
   onRefresh: () => void
   generating?: boolean
   generatingStatus?: string
+  selectedTopic?: string
 }
 
-export default function ContentCard({ post, profile, platform, onRefresh, generating, generatingStatus }: Props) {
+export default function ContentCard({ post, profile, platform, onRefresh, generating, generatingStatus, selectedTopic }: Props) {
   const [copied, setCopied] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState<string>('')
+  const [expiryColor, setExpiryColor] = useState<'green' | 'yellow' | 'red'>('green')
   const limits = PLATFORM_LIMITS[platform]
+
+  // Live countdown timer
+  useEffect(() => {
+    if (!post) return
+    const update = () => {
+      const ms = new Date(post.expiresAt).getTime() - Date.now()
+      if (ms <= 0) {
+        setTimeRemaining('Expired')
+        setExpiryColor('red')
+        return
+      }
+      const h = Math.floor(ms / 3600000)
+      const m = Math.floor((ms % 3600000) / 60000)
+      setTimeRemaining(`${h}h ${m}m left`)
+      setExpiryColor(h > 12 ? 'green' : h > 2 ? 'yellow' : 'red')
+    }
+    update()
+    const interval = setInterval(update, 30000)
+    return () => clearInterval(interval)
+  }, [post])
 
   const handleCopy = async () => {
     if (!post?.caption) return
     try {
       await navigator.clipboard.writeText(post.caption)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback: select text
       const ta = document.createElement('textarea')
       ta.value = post.caption
       document.body.appendChild(ta)
       ta.select()
       document.execCommand('copy')
       document.body.removeChild(ta)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleShare = (platform: Platform) => {
+    if (!post?.caption) return
+
+    // Try Web Share API first (mobile)
+    if (navigator.share) {
+      navigator.share({
+        title: profile.name,
+        text: post.caption,
+        url: profile.website || undefined,
+      }).catch(() => {})
+      return
+    }
+
+    // Fall back to platform-specific share URL
+    const url = buildShareUrl(platform, post.caption, profile.website)
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer,width=600,height=500')
+    } else {
+      // Instagram — just copy the caption
+      handleCopy()
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!post?.imageUrl) return
+    try {
+      const res = await fetch(post.imageUrl)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${profile.slug}-${platform}-${Date.now()}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      // Fallback — open in new tab
+      window.open(post.imageUrl, '_blank')
     }
   }
 
@@ -98,7 +186,7 @@ export default function ContentCard({ post, profile, platform, onRefresh, genera
             className="w-full mt-4 py-3.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: profile.colors.primary, color: '#fff' }}
           >
-            {generating ? (generatingStatus || 'Generating...') : '✨ Generate Content'}
+            {generating ? (generatingStatus || 'Generating...') : selectedTopic ? `✨ Generate about "${selectedTopic.slice(0, 30)}"` : '✨ Generate Content'}
           </button>
         </div>
       </div>
@@ -120,10 +208,14 @@ export default function ContentCard({ post, profile, platform, onRefresh, genera
         <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm">
           <span className="text-[11px] font-medium text-white capitalize">{platform}</span>
         </div>
-        {/* Expiry badge */}
-        <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm">
-          <span className="text-[10px] text-white/80">
-            ⏰ {new Date(post.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {/* Expiry badge — color coded */}
+        <div
+          className={`absolute top-2.5 right-2.5 sm:top-3 sm:right-3 px-2.5 py-1 rounded-full backdrop-blur-sm ${
+            expiryColor === 'green' ? 'bg-black/60' : ''
+          } ${expiryColor === 'yellow' ? 'bg-yellow-500/80' : ''} ${expiryColor === 'red' ? 'bg-red-500/80' : ''}`}
+        >
+          <span className={`text-[10px] font-medium ${expiryColor === 'green' ? 'text-white/80' : 'text-white'}`}>
+            ⏰ {timeRemaining || `${new Date(post.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
           </span>
         </div>
       </div>
@@ -166,18 +258,48 @@ export default function ContentCard({ post, profile, platform, onRefresh, genera
           </div>
         )}
 
-        {/* Action buttons */}
+        {/* Share buttons row */}
         <div className="flex gap-2 mt-4">
           <button
             onClick={handleCopy}
-            className="flex-1 py-3 rounded-xl text-sm font-medium border border-brand-border hover:border-brand-accent active:bg-brand-border/50 transition-all min-h-[48px]"
+            className={`flex-1 py-3 rounded-xl text-sm font-medium border transition-all min-h-[48px] ${
+              copied
+                ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                : 'border-brand-border hover:border-brand-accent active:bg-brand-border/50'
+            }`}
           >
-            {copied ? '✓ Copied!' : '📋 Copy Caption'}
+            {copied ? '✓ Copied!' : '📋 Copy'}
           </button>
+
+          {/* Platform share buttons */}
+          {profile.enabledPlatforms.map((p) => (
+            <button
+              key={p}
+              onClick={() => handleShare(p)}
+              className="px-3 py-3 rounded-xl text-sm font-medium border border-brand-border hover:border-brand-accent active:bg-brand-border/50 transition-all min-h-[48px] flex items-center justify-center"
+              aria-label={`Share to ${p}`}
+              title={`Share to ${p}`}
+            >
+              {SHARE_ICONS[p]}
+            </button>
+          ))}
+
+          {/* Image download */}
+          <button
+            onClick={handleDownload}
+            className="px-3 py-3 rounded-xl text-sm font-medium border border-brand-border hover:border-brand-accent active:bg-brand-border/50 transition-all min-h-[48px] flex items-center justify-center"
+            aria-label="Download image"
+            title="Download image"
+          >
+            ⬇️
+          </button>
+
+          {/* Regenerate */}
           <button
             onClick={onRefresh}
-            className="px-4 py-3 rounded-xl text-sm font-medium border border-brand-border hover:border-brand-accent active:bg-brand-border/50 transition-all min-h-[48px]"
+            className="px-4 py-3 rounded-xl text-sm font-medium border border-brand-border hover:border-brand-accent active:bg-brand-border/50 transition-all min-h-[48px] flex items-center justify-center"
             aria-label="Regenerate"
+            title="Regenerate content"
           >
             🔄
           </button>

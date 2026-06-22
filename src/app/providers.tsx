@@ -71,9 +71,11 @@ interface AppContextType {
   setActivePlatform: (p: Platform) => void
   currentPost: ContentPost | null
   setCurrentPost: (post: ContentPost | null) => void
-  refreshContent: () => Promise<void>
+  refreshContent: (topic?: string) => Promise<void>
   generating: boolean
   generatingStatus: string
+  topics: string[]
+  loadTopics: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | null>(null)
@@ -103,6 +105,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const [currentPost, setCurrentPost] = useState<ContentPost | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generatingStatus, setGeneratingStatus] = useState('')
+  const [topics, setTopics] = useState<string[]>([])
   const { generate } = useImageGen()
 
   // Listen for auth state changes
@@ -136,6 +139,17 @@ export function Providers({ children }: { children: ReactNode }) {
     fetchCurrentPost(supabase, activeProfile.id, activePlatform, user.id).then(setCurrentPost)
   }, [supabase, user, activeProfile, activePlatform])
 
+  // Auto-refresh: check every 60s if current post has expired
+  useEffect(() => {
+    if (!currentPost) return
+    const interval = setInterval(() => {
+      if (new Date(currentPost.expiresAt) < new Date()) {
+        setCurrentPost(null) // Triggers "Generate Content" state
+      }
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [currentPost])
+
   const signOut = useCallback(async () => {
     if (!supabase) return
     await supabase.auth.signOut()
@@ -144,9 +158,9 @@ export function Providers({ children }: { children: ReactNode }) {
     setCurrentPost(null)
   }, [supabase])
 
-  const refreshContent = useCallback(async () => {
-    // First try to fetch an existing non-expired post
-    if (supabase && user) {
+  const refreshContent = useCallback(async (topic?: string) => {
+    // First try to fetch an existing non-expired post (only if no specific topic requested)
+    if (!topic && supabase && user) {
       const existing = await fetchCurrentPost(supabase, activeProfile.id, activePlatform, user.id)
       if (existing) {
         setCurrentPost(existing)
@@ -179,8 +193,24 @@ export function Providers({ children }: { children: ReactNode }) {
 
       setGeneratingStatus('Writing caption...')
 
-      // Generate a simple caption from brand voice
-      const caption = buildCaption(activeProfile, activePlatform)
+      // Generate AI caption via /api/generate-caption
+      const caption = await generateCaption(activeProfile, activePlatform, topic)
+
+      // Try to persist image to Supabase Storage (non-blocking — falls back to original URL)
+      let storedImageUrl = imageUrl
+      try {
+        const storeRes = await fetch('/api/store-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl }),
+        })
+        if (storeRes.ok) {
+          const storeData = await storeRes.json()
+          if (storeData.storedUrl) storedImageUrl = storeData.storedUrl
+        }
+      } catch {
+        // Non-critical — use the ephemeral URL
+      }
 
       // Save to Supabase if available
       let savedPost: ContentPost | null = null
@@ -189,7 +219,7 @@ export function Providers({ children }: { children: ReactNode }) {
           profileId: activeProfile.id,
           userId: user.id,
           platform: activePlatform,
-          imageUrl,
+          imageUrl: storedImageUrl,
           caption,
         })
       }
@@ -219,6 +249,22 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [supabase, user, activeProfile, activePlatform, generate])
 
+  const loadTopics = useCallback(async () => {
+    try {
+      const res = await fetch('/api/topics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: activeProfile }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setTopics(data.topics || [])
+      }
+    } catch {
+      // Silent fail — topics are optional
+    }
+  }, [activeProfile])
+
   return (
     <AppContext.Provider value={{
       supabase,
@@ -235,6 +281,8 @@ export function Providers({ children }: { children: ReactNode }) {
       refreshContent,
       generating,
       generatingStatus,
+      topics,
+      loadTopics,
     }}>
       {children}
     </AppContext.Provider>
@@ -244,37 +292,59 @@ export function Providers({ children }: { children: ReactNode }) {
 // ── Helpers ────────────────────────────────────────────────────────
 
 function buildImagePrompt(profile: BrandProfile, platform: Platform): string {
-  const theme = profile.colors.primary === '#e7f900' || profile.colors.accent === '#e7f900'
-    ? 'neon yellow and dark futuristic crypto aesthetic'
-    : 'professional clean modern aesthetic'
+  const isNeon = profile.colors.primary === '#e7f900' || profile.colors.accent === '#e7f900'
+  const theme = isNeon
+    ? 'neon yellow and dark futuristic crypto aesthetic, glowing accents'
+    : `clean modern aesthetic with ${profile.colors.primary} accents`
 
-  const platformHint = platform === 'instagram'
-    ? 'square composition'
-    : 'wide banner composition'
-
-  // Keep prompt short for reliability (gpt-image-2 prefers <60 words)
-  return `${profile.name} social media ${platform} post image. ${theme}. ${profile.description}. ${platformHint}. Bold, eye-catching, high quality.`
-}
-
-function buildCaption(profile: BrandProfile, platform: Platform): string {
-  const tags = profile.hashtags.slice(0, platform === 'instagram' ? 8 : 3).join(' ')
-  const lines: string[] = []
-
-  if (profile.id === 'cryptosidao') {
-    const templates = [
-      `Building the future of decentralized communities. The revolution won't be centralized. 🚀\n\n${tags}`,
-      `Web3 is here. Are you ready? Join the movement. 💎\n\n${tags}`,
-      `Decentralization isn't just a buzzword — it's the future. 🔮\n\n${tags}`,
-    ]
-    lines.push(templates[Math.floor(Math.random() * templates.length)])
-  } else {
-    const templates = [
-      `Innovation meets excellence. This is ${profile.name}. ✨\n\n${tags}`,
-      `Stay ahead of the curve with ${profile.name}. 💡\n\n${tags}`,
-      `The future is now. ${profile.description}. 🔥\n\n${tags}`,
-    ]
-    lines.push(templates[Math.floor(Math.random() * templates.length)])
+  const platformHints: Record<Platform, string> = {
+    twitter: 'wide horizontal composition, 16:9 ratio',
+    instagram: 'square composition, centered, 1:1 ratio',
+    facebook: 'wide horizontal composition, bold headline area',
+    linkedin: 'professional wide composition, clean negative space',
   }
 
-  return lines[0]
+  // Keep prompt short for reliability (gpt-image-2 prefers <60 words)
+  return `${profile.name} social media post image. ${theme}. ${profile.description}. ${platformHints[platform]}. Bold, eye-catching, high quality, no text overlay.`
+}
+
+async function generateCaption(
+  profile: BrandProfile,
+  platform: Platform,
+  topic?: string,
+): Promise<string> {
+  try {
+    const res = await fetch('/api/generate-caption', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile: {
+          name: profile.name,
+          description: profile.description,
+          voice: profile.voice,
+          hashtags: profile.hashtags,
+          website: profile.website,
+        },
+        platform,
+        topic,
+      }),
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      if (data.caption) return data.caption
+    }
+
+    // Fallback to local template if API fails
+    console.warn('Caption API failed, using fallback')
+  } catch (err) {
+    console.warn('Caption API error, using fallback:', err)
+  }
+
+  return fallbackCaption(profile, platform)
+}
+
+function fallbackCaption(profile: BrandProfile, platform: Platform): string {
+  const tags = profile.hashtags.slice(0, platform === 'instagram' ? 8 : 3).join(' ')
+  return `Stay ahead with ${profile.name}. ${profile.description} ${tags}`
 }

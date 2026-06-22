@@ -112,6 +112,77 @@ export async function fetchPostHistory(
 }
 
 /**
+ * Update a brand profile in Supabase.
+ */
+export async function updateProfile(
+  supabase: SupabaseClient | null,
+  profileId: string,
+  updates: {
+    name?: string
+    description?: string
+    voice?: string
+    colors?: { primary: string; secondary: string; accent: string }
+    hashtags?: string[]
+    website?: string
+    enabled_platforms?: string[]
+  },
+): Promise<boolean> {
+  if (!supabase) return false
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', profileId)
+
+  return !error
+}
+
+/**
+ * Create a new brand profile in Supabase.
+ */
+export async function createProfile(
+  supabase: SupabaseClient | null,
+  profile: {
+    slug: string
+    name: string
+    description?: string
+    voice?: string
+    colors?: { primary: string; secondary: string; accent: string }
+    hashtags?: string[]
+    website?: string
+    enabled_platforms?: string[]
+  },
+): Promise<string | null> {
+  if (!supabase) return null
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert(profile)
+    .select('id')
+    .single()
+
+  if (error || !data) return null
+  return data.id
+}
+
+/**
+ * Delete a post from Supabase.
+ */
+export async function deletePost(
+  supabase: SupabaseClient | null,
+  postId: string,
+): Promise<boolean> {
+  if (!supabase) return false
+
+  const { error } = await supabase
+    .from('posts')
+    .delete()
+    .eq('id', postId)
+
+  return !error
+}
+
+/**
  * Fetch brand profiles from Supabase (falls back to hardcoded BRAND_PROFILES).
  */
 export async function fetchProfiles(

@@ -3,11 +3,29 @@
 import { useApp } from '@/app/providers'
 import ContentCard from '@/components/ContentCard'
 import SettingsPanel from '@/components/SettingsPanel'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 export default function Dashboard() {
-  const { currentPost, activeProfile, activePlatform, refreshContent, user, signOut, loading, generating, generatingStatus } = useApp()
+  const { currentPost, activeProfile, activePlatform, refreshContent, user, signOut, loading, generating, generatingStatus, topics, loadTopics } = useApp()
   const [showSettings, setShowSettings] = useState(false)
+  const [selectedTopic, setSelectedTopic] = useState<string | undefined>(undefined)
+  const [topicsLoaded, setTopicsLoaded] = useState(false)
+
+  // Load topic suggestions when there's no post
+  useEffect(() => {
+    if (!currentPost && !generating && !topicsLoaded) {
+      loadTopics()
+      setTopicsLoaded(true)
+    }
+    if (currentPost) {
+      setTopicsLoaded(false)
+      setSelectedTopic(undefined)
+    }
+  }, [currentPost, generating, topicsLoaded, loadTopics])
+
+  const handleGenerate = useCallback((topic?: string) => {
+    refreshContent(topic)
+  }, [refreshContent])
 
   const handleOpenSidebar = useCallback(() => {
     const fn = (window as unknown as Record<string, unknown>).__openSidebar as (() => void) | undefined
@@ -61,6 +79,18 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* History button */}
+          <a
+            href="/history"
+            className="p-2.5 rounded-lg bg-brand-card border border-brand-border hover:border-brand-accent transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="History"
+            title="Content History"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </a>
+
           {/* Settings button */}
           <button
             onClick={() => setShowSettings(true)}
@@ -96,14 +126,41 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Topic picker — only when no active post */}
+      {!currentPost && !generating && topics.length > 0 && (
+        <div className="w-full max-w-lg mb-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-muted mb-2">
+            ✨ Trending Topics
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {topics.map((topic) => (
+              <button
+                key={topic}
+                onClick={() => setSelectedTopic(selectedTopic === topic ? undefined : topic)}
+                className={`
+                  px-3 py-2 rounded-full text-xs font-medium transition-all min-h-[36px]
+                  ${selectedTopic === topic
+                    ? 'bg-brand-accent text-white'
+                    : 'bg-brand-card border border-brand-border text-brand-muted hover:border-brand-accent hover:text-brand-text'
+                  }
+                `}
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Content Card */}
       <ContentCard
         post={currentPost}
         profile={activeProfile}
         platform={activePlatform}
-        onRefresh={refreshContent}
+        onRefresh={() => handleGenerate(selectedTopic)}
         generating={generating}
         generatingStatus={generatingStatus}
+        selectedTopic={selectedTopic}
       />
 
       {/* Platform tips */}

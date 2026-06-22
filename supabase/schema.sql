@@ -71,6 +71,21 @@ CREATE POLICY "Users can update own posts" ON posts
 CREATE POLICY "Users can delete own posts" ON posts
   FOR DELETE USING (auth.uid() = user_id);
 
+-- ── Storage bucket for post images ──────────────────────────────
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('posts', 'posts', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies: authenticated users can upload/read
+CREATE POLICY "Posts bucket readable by authenticated" ON storage.objects
+  FOR SELECT USING (bucket_id = 'posts' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Posts bucket writable by authenticated" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'posts' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Posts bucket deletable by owner" ON storage.objects
+  FOR DELETE USING (bucket_id = 'posts' AND auth.uid() = owner);
+
 -- ── Seed data ────────────────────────────────────────────────────
 INSERT INTO profiles (slug, name, description, voice, colors, hashtags, website, enabled_platforms)
 VALUES
